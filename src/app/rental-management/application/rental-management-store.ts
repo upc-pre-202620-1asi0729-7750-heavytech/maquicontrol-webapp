@@ -95,6 +95,10 @@ export class RentalManagementStore {
   }
 
   confirmReservation(rental: Rental): void {
+    if (rental.status !== RentalStatus.Requested) {
+      this.#saveError.set('Only requested reservations can be confirmed.');
+      return;
+    }
     this.#saveError.set(null);
 
     const confirmed = new Rental({
@@ -118,8 +122,16 @@ export class RentalManagementStore {
   }
 
   cancelReservation(rental: Rental, reason: string): void {
+    if (
+      rental.status === RentalStatus.Cancelled ||
+      rental.status === RentalStatus.Completed
+    ) {
+      this.#saveError.set(
+        'Cancelled or completed reservations cannot be cancelled again.',
+      );
+      return;
+    }
     this.#saveError.set(null);
-
     const cancelled = new Rental({
       id: rental.id,
       machineryId: rental.machineryId,
