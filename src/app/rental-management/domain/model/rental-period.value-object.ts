@@ -3,6 +3,15 @@ export class RentalPeriod {
   readonly #endDate: Date;
 
   constructor(props: { startDate: Date; endDate: Date }) {
+    if (
+      !(props.startDate instanceof Date) ||
+      Number.isNaN(props.startDate.getTime()) ||
+      !(props.endDate instanceof Date) ||
+      Number.isNaN(props.endDate.getTime())
+    ) {
+      throw new Error('Rental period dates must be valid dates.');
+    }
+
     if (props.endDate.getTime() < props.startDate.getTime()) {
       throw new Error('Rental period end date cannot be before the start date.');
     }
@@ -19,13 +28,31 @@ export class RentalPeriod {
   }
 
   static parseIsoDate(value: string): Date {
-    const [year, month, day] = value.slice(0, 10).split('-').map(Number);
-    return new Date(year, month - 1, day);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new Error(`Invalid ISO date format: ${value}`);
+    }
+
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(0);
+
+    date.setHours(0, 0, 0, 0);
+    date.setFullYear(year, month - 1, day);
+
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      throw new Error(`Invalid calendar date: ${value}`);
+    }
+
+    return date;
   }
 
   static toIsoDate(date: Date): string {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      throw new Error('Cannot convert an invalid date to ISO format.');
+    }
+
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
+
     return `${date.getFullYear()}-${month}-${day}`;
   }
 
@@ -43,8 +70,13 @@ export class RentalPeriod {
 
   durationInDays(): number {
     const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
-    const toCalendarDay = (date: Date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-    const days = Math.round((toCalendarDay(this.#endDate) - toCalendarDay(this.#startDate)) / MILLISECONDS_PER_DAY);
+
+    const toCalendarDay = (date: Date) =>
+      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+
+    const days = Math.round(
+      (toCalendarDay(this.#endDate) - toCalendarDay(this.#startDate)) / MILLISECONDS_PER_DAY,
+    );
 
     return Math.max(days + 1, 1);
   }
@@ -57,6 +89,10 @@ export class RentalPeriod {
   }
 
   isValid(): boolean {
-    return this.#endDate.getTime() >= this.#startDate.getTime();
+    return (
+      !Number.isNaN(this.#startDate.getTime()) &&
+      !Number.isNaN(this.#endDate.getTime()) &&
+      this.#endDate.getTime() >= this.#startDate.getTime()
+    );
   }
 }
