@@ -29,10 +29,6 @@
       }
     </fieldset>
 
-    @if (rolesUnavailable()) {
-      <span class="error-message" role="alert">{{ 'sign-up.error.roles-unavailable' | translate }}</span>
-    }
-
     @if (store.error()) {
       <span class="error-message" role="alert">{{ store.error() }}</span>
     }

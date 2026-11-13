@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -25,7 +25,6 @@ export class SignUpForm {
   readonly #router = inject(Router);
 
   protected readonly roleOptions = SELF_SERVICE_ROLES;
-  protected readonly rolesUnavailable = signal(false);
 
   protected readonly form = new FormGroup({
     email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
@@ -53,18 +52,10 @@ export class SignUpForm {
       return;
     }
 
-    const role = this.store.roles().find((candidate) => candidate.name === this.form.value.roleName);
-    if (!role) {
-      this.rolesUnavailable.set(true);
-      this.store.loadRoles();
-      return;
-    }
-    this.rolesUnavailable.set(false);
-
     const command = new SignUpCommand({
       email: this.form.value.email!,
       password: this.form.value.password!,
-      roleId: role.id,
+      roleName: this.form.value.roleName!,
     });
 
     this.store.signUp(command, this.#router);

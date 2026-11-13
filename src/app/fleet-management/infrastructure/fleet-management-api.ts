@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 import { BaseApi } from '../../shared/infrastructure/base-api';
 import { Category } from '../domain/model/category.entity';
 import { Machinery } from '../domain/model/machinery.entity';
+import { MachineryStatus } from '../domain/model/machinery-status';
 import { CategoryApiEndpoint } from './category-api-endpoint';
 import { MachineryApiEndpoint } from './machinery-api-endpoint';
 
@@ -27,6 +28,10 @@ export class FleetManagementApi extends BaseApi {
 
   updateMachinery(machinery: Machinery, id: number): Observable<Machinery> {
     return this.#machineryEndpoint.update(machinery, id);
+  }
+
+  changeMachineryStatus(id: number, status: MachineryStatus): Observable<Machinery> {
+    return this.#machineryEndpoint.changeStatus(id, status);
   }
 
   deleteMachinery(id: number): Observable<void> {

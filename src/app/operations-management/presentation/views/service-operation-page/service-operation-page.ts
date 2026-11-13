@@ -30,9 +30,12 @@ export class ServiceOperationPage implements OnInit {
   ngOnInit(): void {
     this.rentalId = Number(this.#route.snapshot.paramMap.get('rentalId'));
 
-    if (!this.rental) {
+    if (!Number.isInteger(this.rentalId) || this.rentalId <= 0) {
       this.#router.navigate(['/rental/reservations']).then();
+      return;
     }
+
+    this.store.loadOperationForRental(this.rentalId);
   }
 
   protected get rental() {

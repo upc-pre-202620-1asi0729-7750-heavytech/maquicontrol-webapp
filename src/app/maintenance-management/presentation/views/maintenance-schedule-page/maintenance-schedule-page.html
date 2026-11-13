@@ -49,6 +49,9 @@
       <label for="scheduledDate">{{ 'maintenance.scheduled-date' | translate }}</label>
       <input id="scheduledDate" type="date" formControlName="scheduledDate" />
 
+      <label for="technicianName">{{ 'maintenance.technician' | translate }}</label>
+      <input id="technicianName" type="text" formControlName="technicianName" />
+
       @if (store.saveError()) {
         <span class="error-message" role="alert">{{ store.saveError() }}</span>
       }

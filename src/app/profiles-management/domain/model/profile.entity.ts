@@ -1,5 +1,6 @@
 import { BaseEntity } from '../../../shared/domain/model/base-entity';
 import { ContactInformation } from './contact-information.value-object';
+import { DocumentType } from './document-type';
 
 export class Profile implements BaseEntity {
   readonly #id: number;
@@ -7,6 +8,7 @@ export class Profile implements BaseEntity {
   readonly #organizationId: number | null;
   readonly #firstName: string;
   readonly #lastName: string;
+  readonly #documentType: DocumentType;
   readonly #documentNumber: string;
   readonly #contactInformation: ContactInformation;
   readonly #createdAt: Date;
@@ -18,6 +20,7 @@ export class Profile implements BaseEntity {
     organizationId: number | null;
     firstName: string;
     lastName: string;
+    documentType: DocumentType;
     documentNumber: string;
     contactInformation: ContactInformation;
     createdAt: Date;
@@ -40,6 +43,7 @@ export class Profile implements BaseEntity {
     this.#organizationId = props.organizationId;
     this.#firstName = props.firstName.trim();
     this.#lastName = props.lastName.trim();
+    this.#documentType = props.documentType;
     this.#documentNumber = props.documentNumber.trim();
     this.#contactInformation = props.contactInformation;
     this.#createdAt = props.createdAt;
@@ -64,6 +68,10 @@ export class Profile implements BaseEntity {
 
   get lastName(): string {
     return this.#lastName;
+  }
+
+  get documentType(): DocumentType {
+    return this.#documentType;
   }
 
   get documentNumber(): string {

@@ -1,25 +1,29 @@
-import { BaseResource, BaseResponse } from '../../shared/infrastructure/base-response';
+import { OrganizationResource } from './organization-response';
 
-export interface ProfileResponse extends BaseResponse {
-  profiles: ProfileResource[];
-}
-
-export interface ProfileResource extends BaseResource {
+export interface ProfileResource {
   id: number;
   userAccountId: number;
-  organizationId: number | null;
   firstName: string;
   lastName: string;
+  fullName: string;
+  documentType: string;
   documentNumber: string;
-  contactInformation: ContactInformationResource;
-  createdAt: string;
-  updatedAt: string;
+  contactInformation: ContactInformationResource | null;
+  organization: OrganizationResource | null;
 }
 
 export interface ContactInformationResource {
-  phoneNumber: string;
+  phoneNumber: string | null;
   secondaryEmail: string | null;
-  address: string;
-  district: string;
-  city: string;
+  address: string | null;
+  district: string | null;
+  city: string | null;
+}
+
+export interface SaveProfileRequest {
+  firstName: string;
+  lastName: string;
+  documentType: string;
+  documentNumber: string;
+  contactInformation: ContactInformationResource;
 }

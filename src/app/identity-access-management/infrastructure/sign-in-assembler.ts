@@ -14,8 +14,7 @@ export class SignInAssembler {
     return {
       id: response.id,
       email: response.email,
-      status: response.status,
-      roleIds: response.roleIds,
+      roles: response.roles,
       token: response.token,
     };
   }

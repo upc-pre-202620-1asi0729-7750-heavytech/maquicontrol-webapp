@@ -5,11 +5,9 @@ import { provideRouter, TitleStrategy } from '@angular/router';
 import { provideTranslateService, TranslateService } from '@ngx-translate/core';
 import { provideTranslateHttpLoader } from '@ngx-translate/http-loader';
 import { routes } from './app.routes';
-import { environment } from '../environments/environment';
 import { identityAccessInterceptor } from './identity-access-management/infrastructure/identity-access.interceptor';
 import { SIGN_IN_PORT } from './identity-access-management/infrastructure/sign-in.port';
 import { SignInApiEndpoint } from './identity-access-management/infrastructure/sign-in-api-endpoint';
-import { FakeSignInApiEndpoint } from './identity-access-management/infrastructure/fake-sign-in-api-endpoint';
 import { TranslatedTitleStrategy } from './shared/infrastructure/translated-title-strategy';
 
 export const appConfig: ApplicationConfig = {
@@ -29,9 +27,6 @@ export const appConfig: ApplicationConfig = {
     }),
     provideRouter(routes),
     { provide: TitleStrategy, useClass: TranslatedTitleStrategy },
-    {
-      provide: SIGN_IN_PORT,
-      useClass: environment.useFakeSignIn ? FakeSignInApiEndpoint : SignInApiEndpoint,
-    },
+    { provide: SIGN_IN_PORT, useClass: SignInApiEndpoint },
   ],
 };

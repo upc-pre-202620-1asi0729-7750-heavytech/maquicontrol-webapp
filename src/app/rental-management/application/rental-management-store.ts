@@ -1,5 +1,7 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
-import { finalize, retry } from 'rxjs';
+import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
+import { finalize, forkJoin, map, Observable, retry } from 'rxjs';
+import { IdentityAccessStore } from '../../identity-access-management/application/identity-access-store';
+import { RoleName } from '../../identity-access-management/domain/model/role-name';
 import { ProfilesManagementStore } from '../../profiles-management/application/profiles-management-store';
 import { Rental } from '../domain/model/rental.entity';
 import { RentalPeriod } from '../domain/model/rental-period.value-object';
@@ -17,6 +19,7 @@ const BLOCKING_STATUSES: RentalStatus[] = [
 })
 export class RentalManagementStore {
   readonly #api = inject(RentalManagementApi);
+  readonly #identityAccessStore = inject(IdentityAccessStore);
   readonly #profilesManagementStore = inject(ProfilesManagementStore);
 
   readonly #rentals = signal<Rental[]>([]);
@@ -46,16 +49,33 @@ export class RentalManagementStore {
   );
 
   constructor() {
-    this.loadRentals();
+    effect(() => {
+      const signedIn = this.#identityAccessStore.isSignedIn();
+      const hasProfile = this.#profilesManagementStore.hasProfile();
+      untracked(() => (signedIn && hasProfile ? this.loadRentals() : this.#rentals.set([])));
+    });
   }
 
+  /** Contractors see the rentals they requested and fleet owners every rental of their machinery. */
   loadRentals(): void {
+    const sources: Observable<Rental[]>[] = [];
+    if (this.#identityAccessStore.hasRole(RoleName.Contractor)) {
+      sources.push(this.#api.getMyReservations());
+    }
+    if (this.#identityAccessStore.hasAnyRole([RoleName.FleetOwner, RoleName.FleetAdministrator])) {
+      sources.push(this.#api.getFleetRentals());
+    }
+    if (sources.length === 0) {
+      this.#rentals.set([]);
+      return;
+    }
+
     this.#loading.set(true);
     this.#error.set(null);
 
-    this.#api
-      .getRentals()
+    forkJoin(sources)
       .pipe(
+        map((lists) => [...new Map(lists.flat().map((rental) => [rental.id, rental])).values()]),
         retry(2),
         finalize(() => this.#loading.set(false)),
       )
@@ -83,7 +103,7 @@ export class RentalManagementStore {
     this.#saveError.set(null);
 
     this.#api
-      .createRental(rental)
+      .requestRental(rental)
       .pipe(finalize(() => this.#saving.set(false)))
       .subscribe({
         next: (created) => {
@@ -101,20 +121,7 @@ export class RentalManagementStore {
     }
     this.#saveError.set(null);
 
-    const confirmed = new Rental({
-      id: rental.id,
-      machineryId: rental.machineryId,
-      contractorProfileId: rental.contractorProfileId,
-      period: rental.period,
-      status: RentalStatus.Confirmed,
-      totalAmount: rental.totalAmount,
-      cancellationReason: null,
-      requestedAt: rental.requestedAt,
-      confirmedAt: new Date(),
-      cancelledAt: null,
-    });
-
-    this.#api.updateRental(confirmed, rental.id).subscribe({
+    this.#api.confirmRental(rental.id).subscribe({
       next: (updated) =>
         this.#rentals.set(this.#rentals().map((item) => (item.id === updated.id ? updated : item))),
       error: (error: Error) => this.#saveError.set(error.message),
@@ -132,20 +139,8 @@ export class RentalManagementStore {
       return;
     }
     this.#saveError.set(null);
-    const cancelled = new Rental({
-      id: rental.id,
-      machineryId: rental.machineryId,
-      contractorProfileId: rental.contractorProfileId,
-      period: rental.period,
-      status: RentalStatus.Cancelled,
-      totalAmount: rental.totalAmount,
-      cancellationReason: reason,
-      requestedAt: rental.requestedAt,
-      confirmedAt: rental.confirmedAt,
-      cancelledAt: new Date(),
-    });
 
-    this.#api.updateRental(cancelled, rental.id).subscribe({
+    this.#api.cancelRental(rental.id, reason).subscribe({
       next: (updated) =>
         this.#rentals.set(this.#rentals().map((item) => (item.id === updated.id ? updated : item))),
       error: (error: Error) => this.#saveError.set(error.message),
