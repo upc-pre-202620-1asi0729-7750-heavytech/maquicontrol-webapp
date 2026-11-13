@@ -38,6 +38,13 @@
       </div>
     </div>
 
+    <label for="documentType">{{ 'profile.document-type' | translate }}</label>
+    <select id="documentType" formControlName="documentType">
+      @for (type of documentTypes; track type) {
+        <option [ngValue]="type">{{ documentTypeLabel(type) | translate }}</option>
+      }
+    </select>
+
     <label for="documentNumber">{{ 'profile.document-number' | translate }}</label>
     <input id="documentNumber" type="text" formControlName="documentNumber" [attr.aria-invalid]="form.controls.documentNumber.touched && form.controls.documentNumber.invalid" aria-describedby="documentNumber-error" />
     @if (form.controls.documentNumber.touched && form.controls.documentNumber.invalid) {

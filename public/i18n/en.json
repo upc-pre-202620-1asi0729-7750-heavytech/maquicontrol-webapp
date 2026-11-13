@@ -93,9 +93,6 @@
     "title": "Sign up for MaquiControl",
     "hint": "Choose whether you will rent machinery or publish your own.",
     "role-label": "I want to sign up as",
-    "error": {
-      "roles-unavailable": "Roles could not be loaded. Please try again in a moment."
-    },
     "submit": "Create account",
     "submitting": "Creating account…",
     "has-account": "Already have an account?",
@@ -175,9 +172,15 @@
       "CONSTRUCTION_COMPANY": "Construction company",
       "OTHER": "Other"
     },
+    "document-type": {
+      "DNI": "DNI",
+      "CE": "Foreign resident card (CE)",
+      "PASSPORT": "Passport"
+    },
     "rental-status": {
       "REQUESTED": "Requested",
       "CONFIRMED": "Confirmed",
+      "REJECTED": "Rejected",
       "IN_PROGRESS": "In progress",
       "COMPLETED": "Completed",
       "CANCELLED": "Cancelled"
@@ -253,6 +256,7 @@
     "first-name": "First names",
     "last-name": "Last names",
     "document-number": "ID document number",
+    "document-type": "ID document type",
     "contact-information": "Contact information",
     "phone": "Phone",
     "secondary-email": "Alternate email (optional)",
@@ -335,7 +339,6 @@
     "reported-breakdowns": "Reported breakdowns",
     "start": "Start",
     "complete": "Complete",
-    "technician-prompt": "Assigned technician's name:",
     "cost-prompt": "Final maintenance cost (S/):"
   },
   "breakdown": {

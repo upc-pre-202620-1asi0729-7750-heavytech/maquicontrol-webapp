@@ -93,9 +93,6 @@
     "title": "Regístrate en MaquiControl",
     "hint": "Elige si vas a alquilar maquinaria o publicar la tuya.",
     "role-label": "Quiero registrarme como",
-    "error": {
-      "roles-unavailable": "No se pudieron cargar los roles. Inténtalo de nuevo en un momento."
-    },
     "submit": "Crear cuenta",
     "submitting": "Creando cuenta…",
     "has-account": "¿Ya tienes cuenta?",
@@ -175,9 +172,15 @@
       "CONSTRUCTION_COMPANY": "Empresa de construcción",
       "OTHER": "Otro"
     },
+    "document-type": {
+      "DNI": "DNI",
+      "CE": "Carné de extranjería (CE)",
+      "PASSPORT": "Pasaporte"
+    },
     "rental-status": {
       "REQUESTED": "Solicitada",
       "CONFIRMED": "Confirmada",
+      "REJECTED": "Rechazada",
       "IN_PROGRESS": "En curso",
       "COMPLETED": "Finalizada",
       "CANCELLED": "Cancelada"
@@ -253,6 +256,7 @@
     "first-name": "Nombres",
     "last-name": "Apellidos",
     "document-number": "Número de documento",
+    "document-type": "Tipo de documento",
     "contact-information": "Información de contacto",
     "phone": "Teléfono",
     "secondary-email": "Correo alternativo (opcional)",
@@ -335,7 +339,6 @@
     "reported-breakdowns": "Averías reportadas",
     "start": "Iniciar",
     "complete": "Completar",
-    "technician-prompt": "Nombre del técnico asignado:",
     "cost-prompt": "Costo final del mantenimiento (S/):"
   },
   "breakdown": {

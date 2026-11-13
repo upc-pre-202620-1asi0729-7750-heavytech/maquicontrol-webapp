@@ -7,7 +7,9 @@ export interface PlanResponse extends BaseResponse {
 export interface PlanResource extends BaseResource {
   id: number;
   code: string;
-  monthlyPrice: { amount: number; currency: string };
+  name: string;
   machineryLimit: number;
-  recommended: boolean;
+  priceAmount: number;
+  priceCurrency: string;
+  billingCycle: string;
 }

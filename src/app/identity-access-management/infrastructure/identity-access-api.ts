@@ -35,10 +35,11 @@ export class IdentityAccessApi extends BaseApi {
     return this.#roleEndpoint.getAll();
   }
 
-  userAccountExists(id: number): Observable<boolean> {
-    return this.http.get(`${environment.apiBaseUrl}/user-accounts/${id}`).pipe(
+  /** Asks the backend who owns the stored token; false only when the token is no longer accepted. */
+  isSessionValid(): Observable<boolean> {
+    return this.http.get(`${environment.apiBaseUrl}/user-accounts/me`).pipe(
       map(() => true),
-      catchError((error: HttpErrorResponse) => of(error.status !== 404)),
+      catchError((error: HttpErrorResponse) => of(error.status !== 401 && error.status !== 403)),
     );
   }
 }

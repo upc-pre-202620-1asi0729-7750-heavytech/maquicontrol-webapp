@@ -54,9 +54,9 @@ export class ServiceOperationAssembler
     return new WorkedHours({
       id: resource.id,
       workDate: new Date(resource.workDate),
-      startTime: resource.startTime,
-      endTime: resource.endTime,
-      totalHours: resource.totalHours,
+      startTime: resource.startTime.slice(0, 5),
+      endTime: resource.endTime.slice(0, 5),
+      totalHours: Number(resource.totalHours),
       status: this.toWorkedHoursStatus(resource.status),
       observations: resource.observations,
     });

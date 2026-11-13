@@ -14,11 +14,11 @@ export class PlanAssembler implements BaseAssembler<Plan, PlanResource, PlanResp
       id: resource.id,
       code: this.toPlanCode(resource.code),
       monthlyPrice: new Money({
-        amount: resource.monthlyPrice.amount,
-        currency: this.toCurrency(resource.monthlyPrice.currency),
+        amount: Number(resource.priceAmount),
+        currency: this.toCurrency(resource.priceCurrency),
       }),
       machineryLimit: resource.machineryLimit,
-      recommended: resource.recommended,
+      recommended: resource.code === PlanCode.Pro,
     });
   }
 
@@ -26,9 +26,11 @@ export class PlanAssembler implements BaseAssembler<Plan, PlanResource, PlanResp
     return {
       id: entity.id,
       code: entity.code,
-      monthlyPrice: { amount: entity.monthlyPrice.amount, currency: entity.monthlyPrice.currency },
+      name: entity.code,
       machineryLimit: entity.machineryLimit,
-      recommended: entity.recommended,
+      priceAmount: entity.monthlyPrice.amount,
+      priceCurrency: entity.monthlyPrice.currency,
+      billingCycle: 'MONTHLY',
     };
   }
 

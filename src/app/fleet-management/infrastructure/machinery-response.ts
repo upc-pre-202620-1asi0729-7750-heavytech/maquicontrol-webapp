@@ -9,15 +9,13 @@ export interface MachineryResource extends BaseResource {
   ownerProfileId: number;
   categoryId: number;
   name: string;
-  description: string;
+  description: string | null;
   brand: string;
   model: string;
   manufactureYear: number;
   hourlyRate: MoneyResource;
   status: string;
   location: MachineryLocationResource;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface MoneyResource {
@@ -30,4 +28,16 @@ export interface MachineryLocationResource {
   province: string;
   district: string;
   address: string;
+}
+
+/** Body of the register and update machinery requests. */
+export interface SaveMachineryRequest {
+  categoryId: number;
+  name: string;
+  description: string;
+  brand: string;
+  model: string;
+  manufactureYear: number;
+  hourlyRate: MoneyResource;
+  location: MachineryLocationResource;
 }

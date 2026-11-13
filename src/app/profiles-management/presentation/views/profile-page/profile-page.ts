@@ -6,6 +6,7 @@ import { TranslatePipe } from '@ngx-translate/core';
 import { IdentityAccessStore } from '../../../../identity-access-management/application/identity-access-store';
 import { ProfilesManagementStore } from '../../../application/profiles-management-store';
 import { ContactInformation } from '../../../domain/model/contact-information.value-object';
+import { DocumentType } from '../../../domain/model/document-type';
 import { Profile } from '../../../domain/model/profile.entity';
 import { OrganizationForm } from '../organization-form/organization-form';
 
@@ -25,6 +26,7 @@ export class ProfilePage {
   protected readonly form = new FormGroup({
     firstName: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     lastName: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    documentType: new FormControl<DocumentType>(DocumentType.Dni, { nonNullable: true }),
     documentNumber: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     phoneNumber: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     secondaryEmail: new FormControl('', { nonNullable: true, validators: [Validators.email] }),
@@ -33,6 +35,7 @@ export class ProfilePage {
     city: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   });
 
+  protected readonly documentTypes = Object.values(DocumentType);
   protected readonly justSaved = signal(false);
 
   constructor() {
@@ -43,6 +46,7 @@ export class ProfilePage {
         this.form.setValue({
           firstName: profile.firstName,
           lastName: profile.lastName,
+          documentType: profile.documentType,
           documentNumber: profile.documentNumber,
           phoneNumber: profile.contactInformation.phoneNumber,
           secondaryEmail: profile.contactInformation.secondaryEmail ?? '',
@@ -75,6 +79,7 @@ export class ProfilePage {
       organizationId: existingProfile?.organizationId ?? null,
       firstName: value.firstName,
       lastName: value.lastName,
+      documentType: value.documentType,
       documentNumber: value.documentNumber,
       contactInformation: new ContactInformation({
         phoneNumber: value.phoneNumber,
@@ -90,6 +95,10 @@ export class ProfilePage {
     this.justSaved.set(false);
 
     this.store.saveProfile(profile, () => this.justSaved.set(true));
+  }
+
+  protected documentTypeLabel(type: DocumentType): string {
+    return `enums.document-type.${type}`;
   }
 
   protected performSignOut(): void {

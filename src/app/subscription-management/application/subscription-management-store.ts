@@ -1,13 +1,20 @@
 import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
-import { finalize, forkJoin, map, Observable, of, retry, switchMap } from 'rxjs';
+import { finalize, map, Observable, of, retry, switchMap } from 'rxjs';
 import { IdentityAccessStore } from '../../identity-access-management/application/identity-access-store';
+import { RoleName } from '../../identity-access-management/domain/model/role-name';
 import { Payment } from '../domain/model/payment';
 import { PaymentStatus } from '../domain/model/payment-status';
 import { Plan } from '../domain/model/plan.entity';
 import { Subscription } from '../domain/model/subscription.entity';
 import { SubscriptionManagementApi } from '../infrastructure/subscription-management-api';
+import { ConfirmCheckoutRequest } from '../infrastructure/subscription-response';
 
 export const CHECKOUT_RESULT_PATH = '/plans/checkout-result';
+
+/** Reason recorded on the backend when an owner replaces an active plan with another one. */
+const PLAN_CHANGE_REASON = 'Plan change requested by the owner';
+
+const SUBSCRIBER_ROLES = [RoleName.FleetOwner, RoleName.FleetAdministrator];
 
 export type CheckoutOutcome = 'approved' | 'pending' | 'rejected';
 
@@ -19,7 +26,7 @@ export class SubscriptionManagementStore {
   readonly #identityAccessStore = inject(IdentityAccessStore);
 
   readonly #plans = signal<Plan[]>([]);
-  readonly #subscriptions = signal<Subscription[]>([]);
+  readonly #subscription = signal<Subscription | null>(null);
   readonly #loading = signal(false);
   readonly #error = signal<string | null>(null);
   readonly #processing = signal(false);
@@ -33,9 +40,10 @@ export class SubscriptionManagementStore {
   readonly processError = this.#processError.asReadonly();
   readonly checkoutOutcome = this.#checkoutOutcome.asReadonly();
 
-  readonly currentSubscription = computed(
-    () => this.#subscriptions().find((subscription) => subscription.isActive()) ?? null,
-  );
+  readonly currentSubscription = computed(() => {
+    const subscription = this.#subscription();
+    return subscription?.isActive() ? subscription : null;
+  });
 
   readonly currentPlan = computed(() => {
     const subscription = this.currentSubscription();
@@ -43,11 +51,23 @@ export class SubscriptionManagementStore {
   });
 
   constructor() {
-    this.loadPlans();
-
     effect(() => {
-      const userAccountId = this.#identityAccessStore.currentUserId();
-      untracked(() => (userAccountId === null ? this.#subscriptions.set([]) : this.loadSubscriptions(userAccountId)));
+      const signedIn = this.#identityAccessStore.isSignedIn();
+      const subscriber = this.#identityAccessStore.hasAnyRole(SUBSCRIBER_ROLES);
+      untracked(() => {
+        if (!signedIn) {
+          this.#plans.set([]);
+          this.#subscription.set(null);
+          return;
+        }
+
+        this.loadPlans();
+        if (subscriber) {
+          this.loadSubscription();
+        } else {
+          this.#subscription.set(null);
+        }
+      });
     });
   }
 
@@ -70,34 +90,33 @@ export class SubscriptionManagementStore {
       });
   }
 
-  loadSubscriptions(userAccountId: number): void {
-    this.#api
-      .getSubscriptionsByUserAccountId(userAccountId)
-      .pipe(retry(2))
-      .subscribe({
-        next: (subscriptions) => this.#subscriptions.set(subscriptions),
-        error: () => this.#subscriptions.set([]),
-      });
+  loadSubscription(): void {
+    this.#api.getMySubscription().subscribe({
+      next: (subscription) => this.#subscription.set(subscription),
+      error: () => this.#subscription.set(null),
+    });
   }
 
   planById(id: number): Plan | undefined {
     return this.#plans().find((plan) => plan.id === id);
   }
 
+  /**
+   * Opens a subscription on the backend (pending payment) and sends the owner to the Mercado Pago checkout.
+   * The backend allows one active subscription, so an active plan is cancelled before subscribing to another.
+   */
   subscribe(plan: Plan, checkoutTitle: string): void {
-    const userAccountId = this.#identityAccessStore.currentUserId();
-    if (userAccountId === null) {
-      return;
-    }
-
     this.#processing.set(true);
     this.#processError.set(null);
 
-    const subscription = Subscription.request({ id: Date.now(), userAccountId, planId: plan.id });
+    const active = this.currentSubscription();
+    const released: Observable<unknown> = active
+      ? this.#api.cancelSubscription(active.id, PLAN_CHANGE_REASON)
+      : of(null);
 
-    this.#api
-      .createSubscription(subscription)
+    released
       .pipe(
+        switchMap(() => this.#api.subscribeToPlan(plan.code)),
         switchMap((created) =>
           this.#api.createCheckoutPreference({
             title: checkoutTitle,
@@ -113,10 +132,12 @@ export class SubscriptionManagementStore {
         error: (error: Error) => {
           this.#processing.set(false);
           this.#processError.set(error.message);
+          this.loadSubscription();
         },
       });
   }
 
+  /** Reads the Mercado Pago payment and records it on the backend, which activates the subscription when approved. */
   confirmCheckout(paymentId: string | null): void {
     this.#checkoutOutcome.set(null);
     this.#processError.set(null);
@@ -131,22 +152,19 @@ export class SubscriptionManagementStore {
     this.#api
       .getPayment(paymentId)
       .pipe(
-        switchMap((payment) => this.#applyPayment(payment)),
+        switchMap((payment) => this.#recordPayment(payment)),
         finalize(() => this.#processing.set(false)),
       )
       .subscribe({
         next: (outcome) => {
           this.#checkoutOutcome.set(outcome);
-          const userAccountId = this.#identityAccessStore.currentUserId();
-          if (userAccountId !== null) {
-            this.loadSubscriptions(userAccountId);
-          }
+          this.loadSubscription();
         },
         error: (error: Error) => this.#processError.set(error.message),
       });
   }
 
-  #applyPayment(payment: Payment): Observable<CheckoutOutcome> {
+  #recordPayment(payment: Payment): Observable<CheckoutOutcome> {
     const subscriptionId = Number(payment.externalReference);
     if (!Number.isInteger(subscriptionId) || subscriptionId <= 0) {
       throw new Error('The payment does not belong to a MaquiControl subscription.');
@@ -154,31 +172,32 @@ export class SubscriptionManagementStore {
 
     return this.#api.getSubscriptionById(subscriptionId).pipe(
       switchMap((subscription) => {
-        if (subscription.userAccountId !== this.#identityAccessStore.currentUserId()) {
-          throw new Error('The payment belongs to another account.');
+        if (subscription.hasPayment(payment.id)) {
+          return of(subscription);
         }
 
-        if (subscription.isActive() && subscription.paymentId === payment.id) {
-          return of<CheckoutOutcome>('approved');
-        }
-
-        if (payment.status === PaymentStatus.Approved && subscription.isPendingPayment()) {
-          return this.#activate(subscription, payment.id);
+        const request: ConfirmCheckoutRequest = {
+          providerPaymentId: payment.id,
+          status: toConfirmStatus(payment.status),
+        };
+        return this.#api.confirmCheckout(subscription.id, request);
+      }),
+      map((subscription): CheckoutOutcome => {
+        if (subscription.isActive()) {
+          return 'approved';
         }
 
         const pending = payment.status === PaymentStatus.Pending || payment.status === PaymentStatus.InProcess;
-        return of<CheckoutOutcome>(pending ? 'pending' : 'rejected');
+        return pending ? 'pending' : 'rejected';
       }),
     );
   }
+}
 
-  #activate(subscription: Subscription, paymentId: string): Observable<CheckoutOutcome> {
-    const replaced = this.#subscriptions()
-      .filter((other) => other.id !== subscription.id && other.isActive())
-      .map((other) => this.#api.updateSubscription(other.cancel()));
-
-    return forkJoin([this.#api.updateSubscription(subscription.activate(paymentId)), ...replaced]).pipe(
-      map((): CheckoutOutcome => 'approved'),
-    );
+function toConfirmStatus(status: string): ConfirmCheckoutRequest['status'] {
+  if (status === PaymentStatus.Approved) {
+    return 'APPROVED';
   }
+
+  return status === PaymentStatus.Pending || status === PaymentStatus.InProcess ? 'PENDING' : 'REJECTED';
 }

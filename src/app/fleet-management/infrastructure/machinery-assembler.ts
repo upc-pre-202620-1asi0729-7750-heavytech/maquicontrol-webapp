@@ -3,7 +3,7 @@ import { Machinery } from '../domain/model/machinery.entity';
 import { MachineryLocation } from '../domain/model/machinery-location.value-object';
 import { MachineryStatus } from '../domain/model/machinery-status';
 import { Currency, Money } from '../domain/model/money.value-object';
-import { MachineryResource, MachineryResponse } from './machinery-response';
+import { MachineryResource, MachineryResponse, SaveMachineryRequest } from './machinery-response';
 
 export class MachineryAssembler implements BaseAssembler<
   Machinery,
@@ -20,7 +20,7 @@ export class MachineryAssembler implements BaseAssembler<
       ownerProfileId: resource.ownerProfileId,
       categoryId: resource.categoryId,
       name: resource.name,
-      description: resource.description,
+      description: resource.description ?? '',
       brand: resource.brand,
       model: resource.model,
       manufactureYear: resource.manufactureYear,
@@ -35,8 +35,8 @@ export class MachineryAssembler implements BaseAssembler<
         district: resource.location.district,
         address: resource.location.address,
       }),
-      createdAt: new Date(resource.createdAt),
-      updatedAt: new Date(resource.updatedAt),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
   }
 
@@ -55,14 +55,32 @@ export class MachineryAssembler implements BaseAssembler<
         currency: entity.hourlyRate.currency,
       },
       status: entity.status,
-      location: {
-        department: entity.location.department,
-        province: entity.location.province,
-        district: entity.location.district,
-        address: entity.location.address,
+      location: this.#toLocationResource(entity),
+    };
+  }
+
+  toRequestFromEntity(entity: Machinery): SaveMachineryRequest {
+    return {
+      categoryId: entity.categoryId,
+      name: entity.name,
+      description: entity.description,
+      brand: entity.brand,
+      model: entity.model,
+      manufactureYear: entity.manufactureYear,
+      hourlyRate: {
+        amount: entity.hourlyRate.amount,
+        currency: entity.hourlyRate.currency,
       },
-      createdAt: entity.createdAt.toISOString(),
-      updatedAt: entity.updatedAt.toISOString(),
+      location: this.#toLocationResource(entity),
+    };
+  }
+
+  #toLocationResource(entity: Machinery) {
+    return {
+      department: entity.location.department,
+      province: entity.location.province,
+      district: entity.location.district,
+      address: entity.location.address,
     };
   }
 

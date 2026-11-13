@@ -12,6 +12,17 @@ ng serve
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+## Backend
+
+The app talks to the MaquiControl RESTful API (Spring Boot). The base URL lives in `src/environments`:
+
+| File | Used by | `apiBaseUrl` |
+| --- | --- | --- |
+| `environment.development.ts` | `ng serve` | `http://localhost:8080/api/v1` (backend running locally) |
+| `environment.ts` | `ng build` | the backend deployed on Azure App Service |
+
+Sign-in returns a JWT that the app keeps in `sessionStorage` and sends as a bearer token on every request. Mercado Pago checkout preferences and payment lookups go through `paymentsApiBaseUrl`.
+
 ## Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:

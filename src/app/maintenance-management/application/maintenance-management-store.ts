@@ -1,6 +1,8 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { finalize, retry } from 'rxjs';
-import { BreakdownReport } from '../domain/model/breakdown-report.entity';
+import { IdentityAccessStore } from '../../identity-access-management/application/identity-access-store';
+import { RoleName } from '../../identity-access-management/domain/model/role-name';
+import { ProfilesManagementStore } from '../../profiles-management/application/profiles-management-store';
 import { BreakdownSeverity } from '../domain/model/breakdown-severity';
 import { Maintenance } from '../domain/model/maintenance.entity';
 import { MaintenanceStatus } from '../domain/model/maintenance-status';
@@ -8,11 +10,16 @@ import { MaintenanceType } from '../domain/model/maintenance-type';
 import { Money } from '../domain/model/money.value-object';
 import { MaintenanceManagementApi } from '../infrastructure/maintenance-management-api';
 
+/** Identifier the platform replaces when it stores a new maintenance. */
+const UNSAVED_MAINTENANCE_ID = 1;
+
 @Injectable({
   providedIn: 'root',
 })
 export class MaintenanceManagementStore {
   readonly #api = inject(MaintenanceManagementApi);
+  readonly #identityAccessStore = inject(IdentityAccessStore);
+  readonly #profilesManagementStore = inject(ProfilesManagementStore);
 
   readonly #maintenances = signal<Maintenance[]>([]);
   readonly #loading = signal(false);
@@ -31,7 +38,18 @@ export class MaintenanceManagementStore {
   );
 
   constructor() {
-    this.loadMaintenances();
+    effect(() => {
+      const signedIn = this.#identityAccessStore.isSignedIn();
+      const hasProfile = this.#profilesManagementStore.hasProfile();
+      untracked(() => {
+        const isOwner = this.#identityAccessStore.hasAnyRole([RoleName.FleetOwner, RoleName.FleetAdministrator]);
+        if (signedIn && hasProfile && isOwner) {
+          this.loadMaintenances();
+          return;
+        }
+        this.#maintenances.set([]);
+      });
+    });
   }
 
   loadMaintenances(): void {
@@ -57,17 +75,13 @@ export class MaintenanceManagementStore {
     return this.#maintenances().filter((maintenance) => maintenance.machineryId === machineryId);
   }
 
-  private nextMaintenanceId(): number {
-    const existingIds = this.#maintenances().map((maintenance) => maintenance.id);
-    return existingIds.length > 0 ? Math.max(...existingIds) + 1 : 1;
-  }
-
   scheduleMaintenance(
     props: {
       machineryId: number;
       type: MaintenanceType;
       description: string;
       scheduledDate: Date;
+      technicianName: string | null;
     },
     onSuccess: () => void,
   ): void {
@@ -75,7 +89,7 @@ export class MaintenanceManagementStore {
     this.#saveError.set(null);
 
     const maintenance = new Maintenance({
-      id: this.nextMaintenanceId(),
+      id: UNSAVED_MAINTENANCE_ID,
       machineryId: props.machineryId,
       type: props.type,
       status: MaintenanceStatus.Scheduled,
@@ -83,13 +97,13 @@ export class MaintenanceManagementStore {
       scheduledDate: props.scheduledDate,
       startedAt: null,
       completedAt: null,
-      technicianName: null,
+      technicianName: props.technicianName,
       cost: null,
       breakdownReports: [],
     });
 
     this.#api
-      .createMaintenance(maintenance)
+      .scheduleMaintenance(maintenance)
       .pipe(finalize(() => this.#saving.set(false)))
       .subscribe({
         next: (created) => {
@@ -100,28 +114,11 @@ export class MaintenanceManagementStore {
       });
   }
 
-  startMaintenance(maintenance: Maintenance, technicianName: string, onSuccess: () => void = () => {}): void {
+  startMaintenance(maintenance: Maintenance, onSuccess: () => void = () => {}): void {
     this.#saveError.set(null);
-
-    const started = new Maintenance({
-      id: maintenance.id,
-      machineryId: maintenance.machineryId,
-      type: maintenance.type,
-      status: MaintenanceStatus.InProgress,
-      description: maintenance.description,
-      scheduledDate: maintenance.scheduledDate,
-      startedAt: new Date(),
-      completedAt: null,
-      technicianName,
-      cost: maintenance.cost,
-      breakdownReports: maintenance.breakdownReports,
-    });
-
-    this.#api.updateMaintenance(started, maintenance.id).subscribe({
+    this.#api.startMaintenance(maintenance.id).subscribe({
       next: (updated) => {
-        this.#maintenances.set(
-          this.#maintenances().map((item) => (item.id === updated.id ? updated : item)),
-        );
+        this.#replace(updated);
         onSuccess();
       },
       error: (error: Error) => this.#saveError.set(error.message),
@@ -130,32 +127,16 @@ export class MaintenanceManagementStore {
 
   completeMaintenance(maintenance: Maintenance, cost: Money, onSuccess: () => void = () => {}): void {
     this.#saveError.set(null);
-
-    const completed = new Maintenance({
-      id: maintenance.id,
-      machineryId: maintenance.machineryId,
-      type: maintenance.type,
-      status: MaintenanceStatus.Completed,
-      description: maintenance.description,
-      scheduledDate: maintenance.scheduledDate,
-      startedAt: maintenance.startedAt,
-      completedAt: new Date(),
-      technicianName: maintenance.technicianName,
-      cost,
-      breakdownReports: maintenance.breakdownReports,
-    });
-
-    this.#api.updateMaintenance(completed, maintenance.id).subscribe({
+    this.#api.completeMaintenance(maintenance.id, cost).subscribe({
       next: (updated) => {
-        this.#maintenances.set(
-          this.#maintenances().map((item) => (item.id === updated.id ? updated : item)),
-        );
+        this.#replace(updated);
         onSuccess();
       },
       error: (error: Error) => this.#saveError.set(error.message),
     });
   }
 
+  /** The platform opens a corrective maintenance for the reported breakdown and notifies the owner. */
   reportBreakdown(
     machineryId: number,
     report: { description: string; severity: BreakdownSeverity },
@@ -164,38 +145,16 @@ export class MaintenanceManagementStore {
     this.#saving.set(true);
     this.#saveError.set(null);
 
-    const breakdownReport = new BreakdownReport({
-      id: 1,
-      description: report.description,
-      severity: report.severity,
-      reportedAt: new Date(),
-      resolvedAt: null,
-      resolved: false,
-    });
-
-    const maintenance = new Maintenance({
-      id: this.nextMaintenanceId(),
-      machineryId,
-      type: MaintenanceType.Corrective,
-      status: MaintenanceStatus.Scheduled,
-      description: `Avería reportada: ${report.description}`,
-      scheduledDate: new Date(),
-      startedAt: null,
-      completedAt: null,
-      technicianName: null,
-      cost: null,
-      breakdownReports: [breakdownReport],
-    });
-
     this.#api
-      .createMaintenance(maintenance)
+      .reportBreakdown(machineryId, report.description, report.severity)
       .pipe(finalize(() => this.#saving.set(false)))
       .subscribe({
-        next: (created) => {
-          this.#maintenances.set([...this.#maintenances(), created]);
-          onSuccess();
-        },
+        next: () => onSuccess(),
         error: (error: Error) => this.#saveError.set(error.message),
       });
+  }
+
+  #replace(updated: Maintenance): void {
+    this.#maintenances.set(this.#maintenances().map((item) => (item.id === updated.id ? updated : item)));
   }
 }

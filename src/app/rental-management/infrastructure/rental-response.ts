@@ -9,6 +9,7 @@ export interface RentalResource extends BaseResource {
   machineryId: number;
   contractorProfileId: number;
   period: RentalPeriodResource;
+  durationInDays?: number;
   status: string;
   totalAmount: MoneyResource;
   cancellationReason: string | null;
@@ -25,4 +26,11 @@ export interface RentalPeriodResource {
 export interface MoneyResource {
   amount: number;
   currency: string;
+}
+
+/** Body of the request rental call; the backend prices the rental from the machinery hourly rate. */
+export interface RequestRentalRequest {
+  machineryId: number;
+  startDate: string;
+  endDate: string;
 }
