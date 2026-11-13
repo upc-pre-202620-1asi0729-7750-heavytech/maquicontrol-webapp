@@ -6,5 +6,5 @@ export interface SignUpResource extends BaseResource {
   id: number;
   email: string;
   status: string;
-  roleIds: number[];
+  roles: string[];
 }

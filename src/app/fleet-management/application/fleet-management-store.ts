@@ -1,5 +1,6 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
-import { finalize, retry } from 'rxjs';
+import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
+import { finalize, Observable, of, retry, switchMap } from 'rxjs';
+import { IdentityAccessStore } from '../../identity-access-management/application/identity-access-store';
 import { Category } from '../domain/model/category.entity';
 import { Machinery } from '../domain/model/machinery.entity';
 import { MachineryStatus } from '../domain/model/machinery-status';
@@ -10,6 +11,7 @@ import { FleetManagementApi } from '../infrastructure/fleet-management-api';
 })
 export class FleetManagementStore {
   readonly #api = inject(FleetManagementApi);
+  readonly #identityAccessStore = inject(IdentityAccessStore);
 
   readonly #machinery = signal<Machinery[]>([]);
   readonly #categories = signal<Category[]>([]);
@@ -32,8 +34,18 @@ export class FleetManagementStore {
   );
 
   constructor() {
-    this.loadMachinery();
-    this.loadCategories();
+    effect(() => {
+      const signedIn = this.#identityAccessStore.isSignedIn();
+      untracked(() => {
+        if (signedIn) {
+          this.loadMachinery();
+          this.loadCategories();
+          return;
+        }
+        this.#machinery.set([]);
+        this.#categories.set([]);
+      });
+    });
   }
 
   loadMachinery(): void {
@@ -145,7 +157,10 @@ export class FleetManagementStore {
 
     this.#api
       .createMachinery(machinery)
-      .pipe(finalize(() => this.#saving.set(false)))
+      .pipe(
+        switchMap((created) => this.#applyStatus(created, machinery.status)),
+        finalize(() => this.#saving.set(false)),
+      )
       .subscribe({
         next: (created) => {
           this.#machinery.set([...this.#machinery(), created]);
@@ -161,7 +176,10 @@ export class FleetManagementStore {
 
     this.#api
       .updateMachinery(machinery, id)
-      .pipe(finalize(() => this.#saving.set(false)))
+      .pipe(
+        switchMap((updated) => this.#applyStatus(updated, machinery.status)),
+        finalize(() => this.#saving.set(false)),
+      )
       .subscribe({
         next: (updated) => {
           this.#machinery.set(this.#machinery().map((item) => (item.id === id ? updated : item)));
@@ -180,11 +198,16 @@ export class FleetManagementStore {
 
     this.#saveError.set(null);
 
-    this.#api.updateMachinery(machinery.withStatus(status), machineryId).subscribe({
+    this.#api.changeMachineryStatus(machineryId, status).subscribe({
       next: (updated) =>
         this.#machinery.set(this.#machinery().map((item) => (item.id === machineryId ? updated : item))),
       error: (error: Error) => this.#saveError.set(error.message),
     });
+  }
+
+  /** Status changes go through their own endpoint, so a form that also changed the status needs a second call. */
+  #applyStatus(machinery: Machinery, status: MachineryStatus): Observable<Machinery> {
+    return machinery.status === status ? of(machinery) : this.#api.changeMachineryStatus(machinery.id, status);
   }
 
   deleteMachinery(id: number): void {

@@ -14,6 +14,15 @@ import {
 export class MaintenanceAssembler
   implements BaseAssembler<Maintenance, MaintenanceResource, MaintenanceResponse>
 {
+  /** Formats a date as the zone-less LocalDateTime the platform expects. */
+  static toLocalDateTime(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return (
+      `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+      `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+    );
+  }
+
   toEntitiesFromResponse(response: MaintenanceResponse): Maintenance[] {
     return response.maintenances.map((resource) => this.toEntityFromResource(resource));
   }

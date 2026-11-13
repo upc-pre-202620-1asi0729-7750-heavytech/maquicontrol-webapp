@@ -15,26 +15,25 @@ export class SubscriptionAssembler implements BaseAssembler<
   toEntityFromResource(resource: SubscriptionResource): Subscription {
     return new Subscription({
       id: resource.id,
-      userAccountId: resource.userAccountId,
+      ownerProfileId: resource.ownerProfileId,
       planId: resource.planId,
       status: this.toSubscriptionStatus(resource.status),
-      paymentId: resource.paymentId,
-      createdAt: new Date(resource.createdAt),
-      startsAt: resource.startsAt ? new Date(resource.startsAt) : null,
-      endsAt: resource.endsAt ? new Date(resource.endsAt) : null,
+      paymentIds: (resource.payments ?? []).map((payment) => payment.providerPaymentId),
+      startsAt: resource.startedAt ? new Date(resource.startedAt) : null,
+      endsAt: resource.currentPeriodEnd ? new Date(resource.currentPeriodEnd) : null,
     });
   }
 
   toResourceFromEntity(entity: Subscription): SubscriptionResource {
     return {
       id: entity.id,
-      userAccountId: entity.userAccountId,
+      ownerProfileId: entity.ownerProfileId,
       planId: entity.planId,
       status: entity.status,
-      paymentId: entity.paymentId,
-      createdAt: entity.createdAt.toISOString(),
-      startsAt: entity.startsAt?.toISOString() ?? null,
-      endsAt: entity.endsAt?.toISOString() ?? null,
+      startedAt: entity.startsAt?.toISOString() ?? null,
+      currentPeriodEnd: entity.endsAt?.toISOString() ?? null,
+      cancellationReason: null,
+      payments: [],
     };
   }
 

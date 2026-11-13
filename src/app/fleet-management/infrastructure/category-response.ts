@@ -6,5 +6,6 @@ export interface CategoryResponse extends BaseResponse {
 
 export interface CategoryResource extends BaseResource {
   id: number;
+  code?: string;
   name: string;
 }

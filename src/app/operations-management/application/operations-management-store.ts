@@ -1,9 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { finalize, retry } from 'rxjs';
-import { OperationStatus } from '../domain/model/operation-status';
+import { finalize, Observable } from 'rxjs';
 import { ServiceOperation } from '../domain/model/service-operation.entity';
-import { WorkedHours } from '../domain/model/worked-hours.entity';
-import { WorkedHoursStatus } from '../domain/model/worked-hours-status';
 import { OperationsManagementApi } from '../infrastructure/operations-management-api';
 
 @Injectable({
@@ -28,26 +25,20 @@ export class OperationsManagementStore {
     () => this.#operations().filter((operation) => operation.isInProgress()).length,
   );
 
-  constructor() {
-    this.loadOperations();
-  }
-
-  loadOperations(): void {
+  /** Only the rental's contractor and the machinery owner can read its operation, so it is loaded per rental. */
+  loadOperationForRental(rentalId: number): void {
     this.#loading.set(true);
     this.#error.set(null);
 
     this.#api
-      .getServiceOperations()
-      .pipe(
-        retry(2),
-        finalize(() => this.#loading.set(false)),
-      )
+      .getServiceOperationByRentalId(rentalId)
+      .pipe(finalize(() => this.#loading.set(false)))
       .subscribe({
-        next: (operations) => this.#operations.set(operations),
-        error: (error: Error) => {
-          this.#operations.set([]);
-          this.#error.set(error.message);
+        next: (operation) => {
+          const others = this.#operations().filter((item) => item.rentalId !== rentalId);
+          this.#operations.set(operation ? [...others, operation] : others);
         },
+        error: (error: Error) => this.#error.set(error.message),
       });
   }
 
@@ -55,125 +46,41 @@ export class OperationsManagementStore {
     return this.#operations().find((operation) => operation.rentalId === rentalId);
   }
 
-  private nextOperationId(): number {
-    const existingIds = this.#operations().map((operation) => operation.id);
-    return existingIds.length > 0 ? Math.max(...existingIds) + 1 : 1;
-  }
-
-  private nextWorkedHoursId(operation: ServiceOperation): number {
-    const existingIds = operation.workedHours.map((record) => record.id);
-    return existingIds.length > 0 ? Math.max(...existingIds) + 1 : 1;
-  }
-
   startOperation(rentalId: number, machineryId: number, onSuccess: (created: ServiceOperation) => void): void {
     this.#saving.set(true);
-    this.#saveError.set(null);
-
-    const operation = new ServiceOperation({
-      id: this.nextOperationId(),
-      rentalId,
-      machineryId,
-      operatorProfileId: null,
-      status: OperationStatus.InProgress,
-      startedAt: new Date(),
-      completedAt: null,
-      workedHours: [],
-    });
-
-    this.#api
-      .createServiceOperation(operation)
-      .pipe(finalize(() => this.#saving.set(false)))
-      .subscribe({
-        next: (created) => {
-          this.#operations.set([...this.#operations(), created]);
-          onSuccess(created);
-        },
-        error: (error: Error) => this.#saveError.set(error.message),
-      });
+    this.#persist(this.#api.startServiceOperation(rentalId, machineryId), onSuccess);
   }
 
   recordWorkedHours(
     operation: ServiceOperation,
     record: { workDate: Date; startTime: string; endTime: string; totalHours: number; observations: string | null },
   ): void {
-    this.#saveError.set(null);
-
-    const workedHours = new WorkedHours({
-      id: this.nextWorkedHoursId(operation),
-      workDate: record.workDate,
-      startTime: record.startTime,
-      endTime: record.endTime,
-      totalHours: record.totalHours,
-      status: WorkedHoursStatus.Pending,
-      observations: record.observations,
-    });
-
-    const updated = new ServiceOperation({
-      id: operation.id,
-      rentalId: operation.rentalId,
-      machineryId: operation.machineryId,
-      operatorProfileId: operation.operatorProfileId,
-      status: operation.status,
-      startedAt: operation.startedAt,
-      completedAt: operation.completedAt,
-      workedHours: [...operation.workedHours, workedHours],
-    });
-
-    this.persist(updated);
+    this.#persist(
+      this.#api.recordWorkedHours(operation.id, {
+        workDate: record.workDate.toISOString().slice(0, 10),
+        startTime: `${record.startTime}:00`,
+        endTime: `${record.endTime}:00`,
+        observations: record.observations,
+      }),
+    );
   }
 
   validateWorkedHours(operation: ServiceOperation, workedHoursId: number, approve: boolean): void {
-    this.#saveError.set(null);
-
-    const updated = new ServiceOperation({
-      id: operation.id,
-      rentalId: operation.rentalId,
-      machineryId: operation.machineryId,
-      operatorProfileId: operation.operatorProfileId,
-      status: operation.status,
-      startedAt: operation.startedAt,
-      completedAt: operation.completedAt,
-      workedHours: operation.workedHours.map((record) =>
-        record.id === workedHoursId
-          ? new WorkedHours({
-              id: record.id,
-              workDate: record.workDate,
-              startTime: record.startTime,
-              endTime: record.endTime,
-              totalHours: record.totalHours,
-              status: approve ? WorkedHoursStatus.Validated : WorkedHoursStatus.Rejected,
-              observations: record.observations,
-            })
-          : record,
-      ),
-    });
-
-    this.persist(updated);
+    this.#persist(this.#api.validateWorkedHours(operation.id, workedHoursId, approve));
   }
 
   completeOperation(operation: ServiceOperation): void {
-    this.#saveError.set(null);
-
-    const updated = new ServiceOperation({
-      id: operation.id,
-      rentalId: operation.rentalId,
-      machineryId: operation.machineryId,
-      operatorProfileId: operation.operatorProfileId,
-      status: OperationStatus.Completed,
-      startedAt: operation.startedAt,
-      completedAt: new Date(),
-      workedHours: operation.workedHours,
-    });
-
-    this.persist(updated);
+    this.#persist(this.#api.completeServiceOperation(operation.id));
   }
 
-  private persist(operation: ServiceOperation): void {
-    this.#api.updateServiceOperation(operation, operation.id).subscribe({
-      next: (updated) =>
-        this.#operations.set(
-          this.#operations().map((item) => (item.id === updated.id ? updated : item)),
-        ),
+  #persist(request: Observable<ServiceOperation>, onSuccess: (saved: ServiceOperation) => void = () => {}): void {
+    this.#saveError.set(null);
+    request.pipe(finalize(() => this.#saving.set(false))).subscribe({
+      next: (saved) => {
+        const others = this.#operations().filter((item) => item.id !== saved.id);
+        this.#operations.set([...others, saved]);
+        onSuccess(saved);
+      },
       error: (error: Error) => this.#saveError.set(error.message),
     });
   }

@@ -4,13 +4,15 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { MatButtonModule } from '@angular/material/button';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { FleetManagementStore } from '../../../../fleet-management/application/fleet-management-store';
-import { MachineryStatus } from '../../../../fleet-management/domain/model/machinery-status';
 import { ProfilesManagementStore } from '../../../../profiles-management/application/profiles-management-store';
 import { MaintenanceManagementStore } from '../../../application/maintenance-management-store';
 import { Maintenance } from '../../../domain/model/maintenance.entity';
 import { MaintenanceStatus } from '../../../domain/model/maintenance-status';
 import { MaintenanceType } from '../../../domain/model/maintenance-type';
 import { Money } from '../../../domain/model/money.value-object';
+
+/** Time the platform needs to relay the maintenance event to the fleet before the catalog is read again. */
+const MACHINERY_REFRESH_DELAY_MS = 1500;
 
 @Component({
   selector: 'app-maintenance-schedule-page',
@@ -31,6 +33,7 @@ export class MaintenanceSchedulePage {
     type: new FormControl<MaintenanceType>(MaintenanceType.Preventive, { nonNullable: true }),
     description: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     scheduledDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    technicianName: new FormControl('', { nonNullable: true }),
   });
 
   protected get ownedMachinery() {
@@ -75,22 +78,23 @@ export class MaintenanceSchedulePage {
         machineryId: Number(value.machineryId),
         type: value.type,
         description: value.description,
-        scheduledDate: new Date(value.scheduledDate),
+        scheduledDate: new Date(`${value.scheduledDate}T08:00:00`),
+        technicianName: value.technicianName.trim() || null,
       },
-      () => this.form.reset({ type: MaintenanceType.Preventive, description: '', scheduledDate: '', machineryId: '' }),
+      () =>
+        this.form.reset({
+          type: MaintenanceType.Preventive,
+          description: '',
+          scheduledDate: '',
+          technicianName: '',
+          machineryId: '',
+        }),
     );
   }
 
+  /** The platform moves the machinery to IN_MAINTENANCE and back to AVAILABLE on its own, so the catalog is refreshed. */
   protected performStart(maintenance: Maintenance): void {
-    const technicianName = prompt(this.#translate.instant('maintenance.technician-prompt'));
-
-    if (!technicianName || technicianName.trim().length === 0) {
-      return;
-    }
-
-    this.store.startMaintenance(maintenance, technicianName.trim(), () =>
-      this.fleetManagementStore.changeMachineryStatus(maintenance.machineryId, MachineryStatus.InMaintenance),
-    );
+    this.store.startMaintenance(maintenance, () => this.#refreshMachinery());
   }
 
   protected performComplete(maintenance: Maintenance): void {
@@ -107,19 +111,11 @@ export class MaintenanceSchedulePage {
     }
 
     this.store.completeMaintenance(maintenance, new Money({ amount, currency: 'PEN' }), () =>
-      this.#releaseMachinery(maintenance.machineryId),
+      this.#refreshMachinery(),
     );
   }
 
-  #releaseMachinery(machineryId: number): void {
-    const stillInProgress = this.store
-      .maintenanceForMachinery(machineryId)
-      .some((maintenance) => maintenance.status === MaintenanceStatus.InProgress);
-
-    if (stillInProgress || !this.fleetManagementStore.machineryById(machineryId)?.isInMaintenance()) {
-      return;
-    }
-
-    this.fleetManagementStore.changeMachineryStatus(machineryId, MachineryStatus.Available);
+  #refreshMachinery(): void {
+    setTimeout(() => this.fleetManagementStore.loadMachinery(), MACHINERY_REFRESH_DELAY_MS);
   }
 }

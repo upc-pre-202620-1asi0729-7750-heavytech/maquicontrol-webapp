@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { RentalManagementStore } from './rental-management-store';
 import { RentalManagementApi } from '../infrastructure/rental-management-api';
 import { ProfilesManagementStore } from '../../profiles-management/application/profiles-management-store';
+import { IdentityAccessStore } from '../../identity-access-management/application/identity-access-store';
 import { Rental } from '../domain/model/rental.entity';
 import { RentalPeriod } from '../domain/model/rental-period.value-object';
 import { RentalStatus } from '../domain/model/rental-status';
@@ -12,14 +13,18 @@ import { Money } from '../domain/model/money.value-object';
 describe('RentalManagementStore', () => {
   let store: RentalManagementStore;
   let api: {
-    getRentals: ReturnType<typeof vi.fn>;
-    updateRental: ReturnType<typeof vi.fn>;
+    getMyReservations: ReturnType<typeof vi.fn>;
+    getFleetRentals: ReturnType<typeof vi.fn>;
+    confirmRental: ReturnType<typeof vi.fn>;
+    cancelRental: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
     api = {
-      getRentals: vi.fn().mockReturnValue(of([])),
-      updateRental: vi.fn().mockImplementation((rental: Rental) => of(rental)),
+      getMyReservations: vi.fn().mockReturnValue(of([])),
+      getFleetRentals: vi.fn().mockReturnValue(of([])),
+      confirmRental: vi.fn(),
+      cancelRental: vi.fn(),
     };
 
     TestBed.configureTestingModule({
@@ -28,7 +33,11 @@ describe('RentalManagementStore', () => {
         { provide: RentalManagementApi, useValue: api },
         {
           provide: ProfilesManagementStore,
-          useValue: { currentProfile: () => null },
+          useValue: { currentProfile: () => null, hasProfile: () => false },
+        },
+        {
+          provide: IdentityAccessStore,
+          useValue: { isSignedIn: () => false, hasRole: () => false, hasAnyRole: () => false },
         },
       ],
     });
@@ -57,14 +66,14 @@ describe('RentalManagementStore', () => {
   it('should not confirm a reservation that is not requested', () => {
     store.confirmReservation(createRental(RentalStatus.Cancelled));
 
-    expect(api.updateRental).not.toHaveBeenCalled();
+    expect(api.confirmRental).not.toHaveBeenCalled();
     expect(store.saveError()).toBe('Only requested reservations can be confirmed.');
   });
 
   it('should not cancel a reservation that is already cancelled', () => {
     store.cancelReservation(createRental(RentalStatus.Cancelled), 'Another reason');
 
-    expect(api.updateRental).not.toHaveBeenCalled();
+    expect(api.cancelRental).not.toHaveBeenCalled();
     expect(store.saveError()).toBe(
       'Cancelled or completed reservations cannot be cancelled again.',
     );
@@ -73,7 +82,7 @@ describe('RentalManagementStore', () => {
   it('should not cancel a completed reservation', () => {
     store.cancelReservation(createRental(RentalStatus.Completed), 'Test reason');
 
-    expect(api.updateRental).not.toHaveBeenCalled();
+    expect(api.cancelRental).not.toHaveBeenCalled();
     expect(store.saveError()).toBe(
       'Cancelled or completed reservations cannot be cancelled again.',
     );

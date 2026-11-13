@@ -1,15 +1,8 @@
-import { BaseAssembler } from '../../shared/infrastructure/base-assembler';
 import { Organization } from '../domain/model/organization.entity';
 import { OrganizationType } from '../domain/model/organization-type';
-import { OrganizationResource, OrganizationResponse } from './organization-response';
+import { OrganizationResource, SaveOrganizationRequest } from './organization-response';
 
-export class OrganizationAssembler
-  implements BaseAssembler<Organization, OrganizationResource, OrganizationResponse>
-{
-  toEntitiesFromResponse(response: OrganizationResponse): Organization[] {
-    return response.organizations.map((resource) => this.toEntityFromResource(resource));
-  }
-
+export class OrganizationAssembler {
   toEntityFromResource(resource: OrganizationResource): Organization {
     return new Organization({
       id: resource.id,
@@ -17,13 +10,12 @@ export class OrganizationAssembler
       tradeName: resource.tradeName,
       taxId: resource.taxId,
       type: this.toOrganizationType(resource.type),
-      address: resource.address,
+      address: resource.address ?? '',
     });
   }
 
-  toResourceFromEntity(entity: Organization): OrganizationResource {
+  toRequestFromEntity(entity: Organization): SaveOrganizationRequest {
     return {
-      id: entity.id,
       legalName: entity.legalName,
       tradeName: entity.tradeName,
       taxId: entity.taxId,

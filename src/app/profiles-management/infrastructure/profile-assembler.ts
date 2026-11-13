@@ -1,40 +1,37 @@
-import { BaseAssembler } from '../../shared/infrastructure/base-assembler';
 import { ContactInformation } from '../domain/model/contact-information.value-object';
+import { DocumentType } from '../domain/model/document-type';
 import { Profile } from '../domain/model/profile.entity';
-import { ProfileResource, ProfileResponse } from './profile-response';
+import { ProfileResource, SaveProfileRequest } from './profile-response';
 
-export class ProfileAssembler implements BaseAssembler<Profile, ProfileResource, ProfileResponse> {
-  toEntitiesFromResponse(response: ProfileResponse): Profile[] {
-    return response.profiles.map((resource) => this.toEntityFromResource(resource));
-  }
-
+export class ProfileAssembler {
   toEntityFromResource(resource: ProfileResource): Profile {
+    const contact = resource.contactInformation;
+
     return new Profile({
       id: resource.id,
       userAccountId: resource.userAccountId,
-      organizationId: resource.organizationId,
+      organizationId: resource.organization?.id ?? null,
       firstName: resource.firstName,
       lastName: resource.lastName,
+      documentType: this.toDocumentType(resource.documentType),
       documentNumber: resource.documentNumber,
       contactInformation: new ContactInformation({
-        phoneNumber: resource.contactInformation.phoneNumber,
-        secondaryEmail: resource.contactInformation.secondaryEmail,
-        address: resource.contactInformation.address,
-        district: resource.contactInformation.district,
-        city: resource.contactInformation.city,
+        phoneNumber: contact?.phoneNumber ?? '-',
+        secondaryEmail: contact?.secondaryEmail ?? null,
+        address: contact?.address ?? '-',
+        district: contact?.district ?? '-',
+        city: contact?.city ?? '-',
       }),
-      createdAt: new Date(resource.createdAt),
-      updatedAt: new Date(resource.updatedAt),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
   }
 
-  toResourceFromEntity(entity: Profile): ProfileResource {
+  toRequestFromEntity(entity: Profile): SaveProfileRequest {
     return {
-      id: entity.id,
-      userAccountId: entity.userAccountId,
-      organizationId: entity.organizationId,
       firstName: entity.firstName,
       lastName: entity.lastName,
+      documentType: entity.documentType,
       documentNumber: entity.documentNumber,
       contactInformation: {
         phoneNumber: entity.contactInformation.phoneNumber,
@@ -43,8 +40,14 @@ export class ProfileAssembler implements BaseAssembler<Profile, ProfileResource,
         district: entity.contactInformation.district,
         city: entity.contactInformation.city,
       },
-      createdAt: entity.createdAt.toISOString(),
-      updatedAt: entity.updatedAt.toISOString(),
     };
+  }
+
+  private toDocumentType(value: string): DocumentType {
+    if (!Object.values(DocumentType).includes(value as DocumentType)) {
+      throw new Error(`Unknown document type: ${value}`);
+    }
+
+    return value as DocumentType;
   }
 }

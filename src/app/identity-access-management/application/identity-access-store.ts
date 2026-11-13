@@ -12,7 +12,7 @@ const SESSION_STORAGE_KEY = 'mc-session';
 interface StoredSession {
   email: string;
   userId: number;
-  roleIds: number[];
+  roleNames: RoleName[];
 }
 
 function readStoredSession(): (StoredSession & { token: string }) | null {
@@ -23,7 +23,7 @@ function readStoredSession(): (StoredSession & { token: string }) | null {
       return null;
     }
     const session = JSON.parse(rawSession) as StoredSession;
-    if (typeof session.email !== 'string' || typeof session.userId !== 'number' || !Array.isArray(session.roleIds)) {
+    if (typeof session.email !== 'string' || typeof session.userId !== 'number' || !Array.isArray(session.roleNames)) {
       return null;
     }
     return { ...session, token };
@@ -42,7 +42,7 @@ export class IdentityAccessStore {
   readonly #isSignedIn = signal(false);
   readonly #currentEmail = signal<string | null>(null);
   readonly #currentUserId = signal<number | null>(null);
-  readonly #currentRoleIds = signal<number[]>([]);
+  readonly #currentRoleNames = signal<RoleName[]>([]);
   readonly #roles = signal<Role[]>([]);
   readonly #rolesLoaded = signal(false);
   readonly #submitting = signal(false);
@@ -51,7 +51,7 @@ export class IdentityAccessStore {
   readonly isSignedIn = this.#isSignedIn.asReadonly();
   readonly currentEmail = this.#currentEmail.asReadonly();
   readonly currentUserId = this.#currentUserId.asReadonly();
-  readonly currentRoleIds = this.#currentRoleIds.asReadonly();
+  readonly currentRoleNames = this.#currentRoleNames.asReadonly();
   readonly roles = this.#roles.asReadonly();
   readonly rolesLoaded = this.#rolesLoaded.asReadonly();
   readonly submitting = this.#submitting.asReadonly();
@@ -62,9 +62,7 @@ export class IdentityAccessStore {
   );
 
   readonly currentRoles = computed(() =>
-    this.#currentRoleIds()
-      .map((id) => this.roleById(id))
-      .filter((role): role is Role => role !== undefined),
+    this.#roles().filter((role) => this.#currentRoleNames().includes(role.name)),
   );
 
   constructor() {
@@ -77,7 +75,7 @@ export class IdentityAccessStore {
   }
 
   hasRole(roleName: RoleName): boolean {
-    return this.currentRoles().some((role) => role.name === roleName);
+    return this.#currentRoleNames().includes(roleName);
   }
 
   hasAnyRole(roleNames: RoleName[]): boolean {
@@ -96,16 +94,15 @@ export class IdentityAccessStore {
     this.#isSignedIn.set(true);
     this.#currentEmail.set(session.email);
     this.#currentUserId.set(session.userId);
-    this.#currentRoleIds.set(session.roleIds);
+    this.#currentRoleNames.set(session.roleNames);
   }
 
   #validateRestoredAccount(): void {
-    const userId = this.#currentUserId();
-    if (userId === null) {
+    if (this.#currentUserId() === null) {
       return;
     }
-    this.#api.userAccountExists(userId).subscribe((exists) => {
-      if (!exists) {
+    this.#api.isSessionValid().subscribe((valid) => {
+      if (!valid) {
         this.signOut(this.#injector.get(Router));
       }
     });
@@ -157,12 +154,13 @@ export class IdentityAccessStore {
     this.#api.signIn(command).subscribe({
       next: (resource) => {
         sessionStorage.setItem(TOKEN_STORAGE_KEY, resource.token);
-        const session: StoredSession = { email: resource.email, userId: resource.id, roleIds: resource.roleIds };
+        const roleNames = this.#toRoleNames(resource.roles);
+        const session: StoredSession = { email: resource.email, userId: resource.id, roleNames };
         sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
         this.#isSignedIn.set(true);
         this.#currentEmail.set(resource.email);
         this.#currentUserId.set(resource.id);
-        this.#currentRoleIds.set(resource.roleIds);
+        this.#currentRoleNames.set(roleNames);
         if (this.#roles().length === 0) {
           this.loadRoles();
         }
@@ -173,11 +171,15 @@ export class IdentityAccessStore {
         this.#isSignedIn.set(false);
         this.#currentEmail.set(null);
         this.#currentUserId.set(null);
-        this.#currentRoleIds.set([]);
+        this.#currentRoleNames.set([]);
         this.#submitting.set(false);
         this.#error.set(error.message);
       },
     });
+  }
+
+  #toRoleNames(roles: string[]): RoleName[] {
+    return roles.filter((role): role is RoleName => Object.values(RoleName).includes(role as RoleName));
   }
 
   signOut(router: Router): void {
@@ -185,7 +187,7 @@ export class IdentityAccessStore {
     this.#isSignedIn.set(false);
     this.#currentEmail.set(null);
     this.#currentUserId.set(null);
-    this.#currentRoleIds.set([]);
+    this.#currentRoleNames.set([]);
     router.navigate(['/identity/sign-in']).then();
   }
 }
