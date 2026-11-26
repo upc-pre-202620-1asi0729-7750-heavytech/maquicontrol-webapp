@@ -156,7 +156,16 @@
     "yours": "Tu maquinaria",
     "rent": "Alquilar",
     "confirm-delete": "¿Eliminar \"{{ name }}\" del catálogo? Esta acción no se puede deshacer.",
-    "manage-categories": "Gestionar categorías"
+    "manage-categories": "Gestionar categorías",
+    "filters-label": "Filtros del catálogo",
+    "category-filter": "Categoría",
+    "all-categories": "Todas las categorías",
+    "location-filter": "Distrito o departamento",
+    "location-placeholder": "Por ejemplo: Lima o San Martín",
+    "clear-filters": "Limpiar filtros",
+    "filter-results": "Mostrando {{ count }} de {{ total }} equipos",
+    "no-results-title": "No hay maquinaria que coincida",
+    "no-results-text": "Prueba otra categoría o ubicación, o limpia los filtros."
   },
   "enums": {
     "machinery-status": {
