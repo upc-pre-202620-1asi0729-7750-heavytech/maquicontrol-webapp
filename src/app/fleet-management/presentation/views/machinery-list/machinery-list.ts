@@ -1,5 +1,5 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
@@ -25,6 +25,32 @@ export class MachineryList {
   protected readonly canPublish = computed(() => this.#identityAccessStore.hasRole(RoleName.FleetOwner));
   protected readonly canRent = computed(() => this.#identityAccessStore.hasRole(RoleName.Contractor));
 
+  protected readonly categoryFilter = signal('');
+  protected readonly locationFilter = signal('');
+  protected readonly hasFilters = computed(
+    () => this.categoryFilter() !== '' || this.locationFilter() !== '',
+  );
+  protected readonly filteredMachinery = computed(() => {
+    const categoryId = this.categoryFilter();
+    const location = normalizeLocation(this.locationFilter());
+
+    return this.store
+      .machinery()
+      .filter(
+        (machinery) =>
+          (categoryId === '' || String(machinery.categoryId) === categoryId) &&
+          (location === '' ||
+            [machinery.location.district, machinery.location.department].some((value) =>
+              normalizeLocation(value).includes(location),
+            )),
+      );
+  });
+
+  protected clearFilters(): void {
+    this.categoryFilter.set('');
+    this.locationFilter.set('');
+  }
+
   protected isOwner(machinery: Machinery): boolean {
     const profile = this.#profilesManagementStore.currentProfile();
     return !!profile && machinery.ownerProfileId === profile.id;
@@ -47,4 +73,8 @@ export class MachineryList {
       this.store.deleteMachinery(id);
     }
   }
+}
+
+function normalizeLocation(value: string): string {
+  return value.normalize('NFD').replace(/\p{M}/gu, '').trim().toLocaleLowerCase();
 }

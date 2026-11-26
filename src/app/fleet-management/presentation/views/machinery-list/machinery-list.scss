@@ -70,6 +70,50 @@ h1 {
   font-size: 0.8rem;
 }
 
+.catalog-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+}
+
+.catalog-filters button {
+  min-height: 2.75rem;
+  --mat-button-outlined-disabled-label-text-color: var(--mc-secondary-text);
+  --mat-button-outlined-disabled-outline-color: var(--mc-border);
+}
+
+.filter-field {
+  display: grid;
+  flex: 1 1 14rem;
+  min-width: 0;
+  gap: 0.5rem;
+  color: var(--mc-text);
+}
+
+.filter-field input,
+.filter-field select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--mc-border);
+  border-radius: 0.5rem;
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  font: inherit;
+}
+
+.filter-field input:focus-visible,
+.filter-field select:focus-visible {
+  outline: 2px solid var(--mc-accent);
+  outline-offset: 2px;
+}
+
+.filter-results {
+  margin-block: 1rem 1.5rem;
+  color: var(--mc-secondary-text);
+}
+
 .machinery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
