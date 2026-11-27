@@ -54,4 +54,15 @@ export class MaintenanceApiEndpoint extends BaseApiEndpoint<
         catchError(this.handleError('Failed to report the breakdown')),
       );
   }
+
+  getHistory(machineryId: number): Observable<Maintenance[]> {
+    return this.http
+      .get<MaintenanceResource[]>(`${this.endpointUrl}/history`, {
+        params: { machineryId: String(machineryId) },
+      })
+      .pipe(
+        map((resources) => resources.map((resource) => this.assembler.toEntityFromResource(resource))),
+        catchError(this.handleError('Failed to fetch maintenance history')),
+      );
+  }
 }
