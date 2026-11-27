@@ -130,6 +130,7 @@
     "save": "Guardar",
     "saving": "Guardando…",
     "sending": "Enviando…",
+    "close": "Cerrar",
     "api-unreachable": "Verifica que la API esté disponible e inténtalo de nuevo."
   },
   "machinery": {
@@ -165,7 +166,12 @@
     "clear-filters": "Limpiar filtros",
     "filter-results": "Mostrando {{ count }} de {{ total }} equipos",
     "no-results-title": "No hay maquinaria que coincida",
-    "no-results-text": "Prueba otra categoría o ubicación, o limpia los filtros."
+    "no-results-text": "Prueba otra categoría o ubicación, o limpia los filtros.",
+    "view-history": "Ver historial mecánico",
+    "history-eyebrow": "Historial mecánico",
+    "history-loading": "Cargando historial mecánico…",
+    "history-empty": "Esta maquinaria aún no tiene mantenimientos completados registrados.",
+    "history-date": "Fecha"
   },
   "enums": {
     "machinery-status": {

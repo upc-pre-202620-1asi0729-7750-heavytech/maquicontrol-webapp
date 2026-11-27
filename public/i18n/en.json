@@ -130,6 +130,7 @@
     "save": "Save",
     "saving": "Saving…",
     "sending": "Sending…",
+    "close": "Close",
     "api-unreachable": "Check that the API is reachable and try again."
   },
   "machinery": {
@@ -165,7 +166,12 @@
     "clear-filters": "Clear filters",
     "filter-results": "Showing {{ count }} of {{ total }} machines",
     "no-results-title": "No matching machinery",
-    "no-results-text": "Try a different category or location, or clear the filters."
+    "no-results-text": "Try a different category or location, or clear the filters.",
+    "view-history": "View mechanical history",
+    "history-eyebrow": "Mechanical history",
+    "history-loading": "Loading mechanical history…",
+    "history-empty": "This machine has no completed maintenance records yet.",
+    "history-date": "Date"
   },
   "enums": {
     "machinery-status": {

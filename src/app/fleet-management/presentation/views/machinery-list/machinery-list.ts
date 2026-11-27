@@ -1,10 +1,12 @@
-import { DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { IdentityAccessStore } from '../../../../identity-access-management/application/identity-access-store';
 import { RoleName } from '../../../../identity-access-management/domain/model/role-name';
+import { MaintenanceManagementStore } from '../../../../maintenance-management/application/maintenance-management-store';
+import { MaintenanceStatus } from '../../../../maintenance-management/domain/model/maintenance-status';
 import { ProfilesManagementStore } from '../../../../profiles-management/application/profiles-management-store';
 import { FleetManagementStore } from '../../../application/fleet-management-store';
 import { Machinery } from '../../../domain/model/machinery.entity';
@@ -12,12 +14,13 @@ import { MachineryStatus } from '../../../domain/model/machinery-status';
 
 @Component({
   selector: 'app-machinery-list',
-  imports: [DecimalPipe, RouterLink, MatButtonModule, TranslatePipe],
+  imports: [DatePipe, DecimalPipe, RouterLink, MatButtonModule, TranslatePipe],
   templateUrl: './machinery-list.html',
   styleUrl: './machinery-list.scss',
 })
 export class MachineryList {
   protected readonly store = inject(FleetManagementStore);
+  protected readonly maintenanceStore = inject(MaintenanceManagementStore);
   readonly #profilesManagementStore = inject(ProfilesManagementStore);
   readonly #identityAccessStore = inject(IdentityAccessStore);
   readonly #translate = inject(TranslateService);
@@ -25,6 +28,7 @@ export class MachineryList {
   protected readonly canPublish = computed(() => this.#identityAccessStore.hasRole(RoleName.FleetOwner));
   protected readonly canRent = computed(() => this.#identityAccessStore.hasRole(RoleName.Contractor));
 
+  protected readonly selectedMachineryForHistory = signal<Machinery | null>(null);
   protected readonly categoryFilter = signal('');
   protected readonly locationFilter = signal('');
   protected readonly hasFilters = computed(
@@ -51,6 +55,23 @@ export class MachineryList {
     this.locationFilter.set('');
   }
 
+  protected openHistory(machinery: Machinery): void {
+    this.selectedMachineryForHistory.set(machinery);
+    this.maintenanceStore.loadMaintenanceHistory(machinery.id);
+  }
+
+  protected retryHistory(): void {
+    const machinery = this.selectedMachineryForHistory();
+    if (machinery) {
+      this.maintenanceStore.loadMaintenanceHistory(machinery.id);
+    }
+  }
+
+  protected closeHistory(): void {
+    this.selectedMachineryForHistory.set(null);
+    this.maintenanceStore.clearMaintenanceHistory();
+  }
+
   protected isOwner(machinery: Machinery): boolean {
     const profile = this.#profilesManagementStore.currentProfile();
     return !!profile && machinery.ownerProfileId === profile.id;
@@ -65,6 +86,10 @@ export class MachineryList {
   }
 
   protected machineryStatusClass(status: MachineryStatus): string {
+    return status.toLowerCase().replaceAll('_', '-');
+  }
+
+  protected maintenanceStatusClass(status: MaintenanceStatus): string {
     return status.toLowerCase().replaceAll('_', '-');
   }
 

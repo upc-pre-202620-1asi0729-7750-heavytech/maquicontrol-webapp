@@ -164,7 +164,12 @@
               <a mat-stroked-button [routerLink]="['/fleet/machinery', machinery.id, 'edit']">
                 {{ 'common.edit' | translate }}
               </a>
-              <button mat-button type="button" (click)="performDelete(machinery.id, machinery.name)">
+              <button
+                mat-button
+                type="button"
+                class="delete-action"
+                (click)="performDelete(machinery.id, machinery.name)"
+              >
                 {{ 'common.delete' | translate }}
               </button>
             } @else if (canRent() && machinery.isAvailable()) {
@@ -172,9 +177,79 @@
                 {{ 'machinery-list.rent' | translate }}
               </a>
             }
+            <button
+              mat-stroked-button
+              type="button"
+              class="history-action"
+              (click)="openHistory(machinery)"
+            >
+              {{ 'machinery-list.view-history' | translate }}
+            </button>
           </div>
         </article>
       }
+    </div>
+  }
+
+  @if (selectedMachineryForHistory(); as selectedMachinery) {
+    <div class="history-backdrop" (click)="closeHistory()" (keydown.escape)="closeHistory()">
+      <section
+        class="history-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-dialog-title"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="history-header">
+          <div>
+            <span class="eyebrow">{{ 'machinery-list.history-eyebrow' | translate }}</span>
+            <h2 id="history-dialog-title">{{ selectedMachinery.name }}</h2>
+          </div>
+          <button mat-stroked-button type="button" class="history-close" (click)="closeHistory()">
+            {{ 'common.close' | translate }}
+          </button>
+        </header>
+
+        @if (maintenanceStore.historyLoading()) {
+          <div class="history-state" role="status" aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <p>{{ 'machinery-list.history-loading' | translate }}</p>
+          </div>
+        } @else if (maintenanceStore.historyError()) {
+          <div class="history-state error-message" role="alert">
+            <p>{{ maintenanceStore.historyError() }}</p>
+            <button mat-flat-button type="button" class="history-retry" (click)="retryHistory()">
+              {{ 'common.retry' | translate }}
+            </button>
+          </div>
+        } @else if (maintenanceStore.history().length === 0) {
+          <div class="history-state">
+            <p>{{ 'machinery-list.history-empty' | translate }}</p>
+          </div>
+        } @else {
+          <ul class="history-list">
+            @for (maintenance of maintenanceStore.history(); track maintenance.id) {
+              <li class="history-item">
+                <div class="history-item-head">
+                  <span class="history-type">
+                    {{ 'enums.maintenance-type.' + maintenance.type | translate }}
+                  </span>
+                  <span class="status" [class]="maintenanceStatusClass(maintenance.status)">
+                    {{ 'enums.maintenance-status.' + maintenance.status | translate }}
+                  </span>
+                </div>
+                <p class="history-description">{{ maintenance.description }}</p>
+                <div class="history-meta">
+                  <span>{{ 'machinery-list.history-date' | translate }}:</span>
+                  <time>
+                    {{ (maintenance.completedAt ?? maintenance.scheduledDate) | date: 'dd/MM/yyyy' }}
+                  </time>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </section>
     </div>
   }
 </section>
