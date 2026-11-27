@@ -5,6 +5,9 @@ import { provideTranslateService, TranslateService } from '@ngx-translate/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IdentityAccessStore } from '../../../../identity-access-management/application/identity-access-store';
 import { RoleName } from '../../../../identity-access-management/domain/model/role-name';
+import { MaintenanceManagementStore } from '../../../../maintenance-management/application/maintenance-management-store';
+import { Maintenance } from '../../../../maintenance-management/domain/model/maintenance.entity';
+import { MaintenanceAssembler } from '../../../../maintenance-management/infrastructure/maintenance-assembler';
 import { ProfilesManagementStore } from '../../../../profiles-management/application/profiles-management-store';
 import { FleetManagementStore } from '../../../application/fleet-management-store';
 import { Category } from '../../../domain/model/category.entity';
@@ -51,12 +54,22 @@ describe('MachineryList catalog filters', () => {
   const loading = signal(false);
   const error = signal<string | null>(null);
   const loadMachinery = vi.fn();
+  const history = signal<Maintenance[]>([]);
+  const historyLoading = signal(false);
+  const historyError = signal<string | null>(null);
+  const loadMaintenanceHistory = vi.fn();
+  const clearMaintenanceHistory = vi.fn();
 
   beforeEach(async () => {
     items.set(initialItems);
     loading.set(false);
     error.set(null);
     loadMachinery.mockClear();
+    history.set([]);
+    historyLoading.set(false);
+    historyError.set(null);
+    loadMaintenanceHistory.mockClear();
+    clearMaintenanceHistory.mockClear();
     await TestBed.configureTestingModule({
       imports: [MachineryList],
       providers: [
@@ -78,6 +91,16 @@ describe('MachineryList catalog filters', () => {
           },
         },
         {
+          provide: MaintenanceManagementStore,
+          useValue: {
+            history,
+            historyLoading,
+            historyError,
+            loadMaintenanceHistory,
+            clearMaintenanceHistory,
+          },
+        },
+        {
           provide: IdentityAccessStore,
           useValue: { hasRole: (role: RoleName) => role === RoleName.Contractor },
         },
@@ -90,6 +113,12 @@ describe('MachineryList catalog filters', () => {
         'filter-results': 'Showing {{ count }} of {{ total }} machines',
         'no-results-title': 'No matching machinery',
         'empty-title': 'No machinery yet',
+        'view-history': 'View mechanical history',
+        'history-empty': 'No completed maintenance records yet.',
+      },
+      enums: {
+        'maintenance-type': { PREVENTIVE: 'Preventive' },
+        'maintenance-status': { COMPLETED: 'Completed' },
       },
     });
     translate.use('en');
@@ -202,5 +231,43 @@ describe('MachineryList catalog filters', () => {
     root.querySelector<HTMLButtonElement>('.error-message button')!.click();
     expect(loadMachinery).toHaveBeenCalledOnce();
     expect(root.querySelector('.filter-results')).toBeNull();
+  });
+
+  it('renders the mechanical history button on every card and opens history records on click', () => {
+    const historyButtons = root.querySelectorAll<HTMLButtonElement>('.history-action');
+    expect(historyButtons).toHaveLength(4);
+
+    history.set([
+      new MaintenanceAssembler().toEntityFromResource({
+        id: 12,
+        machineryId: 101,
+        type: 'PREVENTIVE',
+        status: 'COMPLETED',
+        description: 'Hydraulic filter and oil change',
+        scheduledDate: '2026-10-10T09:00:00',
+        startedAt: '2026-10-10T09:15:00',
+        completedAt: '2026-10-10T12:30:00',
+        technicianName: 'Carlos Vega',
+        cost: null,
+        breakdownReports: [],
+      }),
+    ]);
+
+    historyButtons[0].click();
+    fixture.detectChanges();
+
+    expect(loadMaintenanceHistory).toHaveBeenCalledWith(101);
+    const dialog = root.querySelector('.history-dialog');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain('Excavadora Lima');
+    expect(dialog?.textContent).toContain('Preventive');
+    expect(dialog?.textContent).toContain('Completed');
+    expect(dialog?.textContent).toContain('10/10/2026');
+    expect(dialog?.textContent).toContain('Hydraulic filter and oil change');
+
+    root.querySelector<HTMLButtonElement>('.history-close')!.click();
+    fixture.detectChanges();
+    expect(clearMaintenanceHistory).toHaveBeenCalledOnce();
+    expect(root.querySelector('.history-dialog')).toBeNull();
   });
 });
