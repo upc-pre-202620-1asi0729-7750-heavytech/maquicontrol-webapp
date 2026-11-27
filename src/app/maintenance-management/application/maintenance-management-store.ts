@@ -26,12 +26,20 @@ export class MaintenanceManagementStore {
   readonly #error = signal<string | null>(null);
   readonly #saving = signal(false);
   readonly #saveError = signal<string | null>(null);
+  readonly #history = signal<Maintenance[]>([]);
+  readonly #historyMachineryId = signal<number | null>(null);
+  readonly #historyLoading = signal(false);
+  readonly #historyError = signal<string | null>(null);
 
   readonly maintenances = this.#maintenances.asReadonly();
   readonly loading = this.#loading.asReadonly();
   readonly error = this.#error.asReadonly();
   readonly saving = this.#saving.asReadonly();
   readonly saveError = this.#saveError.asReadonly();
+  readonly history = this.#history.asReadonly();
+  readonly historyMachineryId = this.#historyMachineryId.asReadonly();
+  readonly historyLoading = this.#historyLoading.asReadonly();
+  readonly historyError = this.#historyError.asReadonly();
 
   readonly pendingMaintenanceCount = computed(
     () => this.#maintenances().filter((maintenance) => maintenance.isPending()).length,
@@ -42,6 +50,9 @@ export class MaintenanceManagementStore {
       const signedIn = this.#identityAccessStore.isSignedIn();
       const hasProfile = this.#profilesManagementStore.hasProfile();
       untracked(() => {
+        if (!signedIn) {
+          this.clearMaintenanceHistory();
+        }
         const isOwner = this.#identityAccessStore.hasAnyRole([RoleName.FleetOwner, RoleName.FleetAdministrator]);
         if (signedIn && hasProfile && isOwner) {
           this.loadMaintenances();
@@ -69,6 +80,43 @@ export class MaintenanceManagementStore {
           this.#error.set(error.message);
         },
       });
+  }
+
+  loadMaintenanceHistory(machineryId: number): void {
+    this.#historyMachineryId.set(machineryId);
+    this.#historyLoading.set(true);
+    this.#historyError.set(null);
+    this.#history.set([]);
+
+    this.#api
+      .getMaintenanceHistory(machineryId)
+      .pipe(
+        finalize(() => {
+          if (this.#historyMachineryId() === machineryId) {
+            this.#historyLoading.set(false);
+          }
+        }),
+      )
+      .subscribe({
+        next: (maintenances) => {
+          if (this.#historyMachineryId() === machineryId) {
+            this.#history.set(maintenances);
+          }
+        },
+        error: (error: Error) => {
+          if (this.#historyMachineryId() === machineryId) {
+            this.#history.set([]);
+            this.#historyError.set(error.message);
+          }
+        },
+      });
+  }
+
+  clearMaintenanceHistory(): void {
+    this.#historyMachineryId.set(null);
+    this.#history.set([]);
+    this.#historyLoading.set(false);
+    this.#historyError.set(null);
   }
 
   maintenanceForMachinery(machineryId: number): Maintenance[] {
