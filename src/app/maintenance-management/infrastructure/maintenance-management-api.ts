@@ -32,4 +32,8 @@ export class MaintenanceManagementApi extends BaseApi {
   reportBreakdown(machineryId: number, description: string, severity: BreakdownSeverity): Observable<void> {
     return this.#maintenanceEndpoint.reportBreakdown(machineryId, description, severity);
   }
+
+  getMaintenanceHistory(machineryId: number): Observable<Maintenance[]> {
+    return this.#maintenanceEndpoint.getHistory(machineryId);
+  }
 }
