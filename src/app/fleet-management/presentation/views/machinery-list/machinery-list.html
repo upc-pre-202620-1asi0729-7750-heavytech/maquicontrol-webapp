@@ -51,8 +51,54 @@
       <p>{{ 'machinery-list.empty-text' | translate }}</p>
     </div>
   } @else {
+    <div
+      class="catalog-filters"
+      role="search"
+      [attr.aria-label]="'machinery-list.filters-label' | translate"
+    >
+      <div class="filter-field">
+        <label for="catalog-category">{{ 'machinery-list.category-filter' | translate }}</label>
+        <select
+          id="catalog-category"
+          #categoryInput
+          [value]="categoryFilter()"
+          (change)="categoryFilter.set(categoryInput.value)"
+        >
+          <option value="">{{ 'machinery-list.all-categories' | translate }}</option>
+          @for (category of store.categories(); track category.id) {
+            <option [value]="category.id">{{ category.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="filter-field">
+        <label for="catalog-location">{{ 'machinery-list.location-filter' | translate }}</label>
+        <input
+          id="catalog-location"
+          #locationInput
+          type="search"
+          [placeholder]="'machinery-list.location-placeholder' | translate"
+          [value]="locationFilter()"
+          (input)="locationFilter.set(locationInput.value)"
+        />
+      </div>
+      <button mat-stroked-button type="button" [disabled]="!hasFilters()" (click)="clearFilters()">
+        {{ 'machinery-list.clear-filters' | translate }}
+      </button>
+    </div>
+    <p class="filter-results" role="status" aria-live="polite" aria-atomic="true">
+      {{
+        'machinery-list.filter-results'
+          | translate: { count: filteredMachinery().length, total: store.machineryCount() }
+      }}
+    </p>
+    @if (filteredMachinery().length === 0) {
+      <div class="state-message">
+        <h2>{{ 'machinery-list.no-results-title' | translate }}</h2>
+        <p>{{ 'machinery-list.no-results-text' | translate }}</p>
+      </div>
+    }
     <div class="machinery-grid">
-      @for (machinery of store.machinery(); track machinery.id) {
+      @for (machinery of filteredMachinery(); track machinery.id) {
         <article class="machinery-card">
           <div class="card-heading">
             <span class="machinery-icon material-symbols-outlined" aria-hidden="true">
@@ -118,7 +164,12 @@
               <a mat-stroked-button [routerLink]="['/fleet/machinery', machinery.id, 'edit']">
                 {{ 'common.edit' | translate }}
               </a>
-              <button mat-button type="button" (click)="performDelete(machinery.id, machinery.name)">
+              <button
+                mat-button
+                type="button"
+                class="delete-action"
+                (click)="performDelete(machinery.id, machinery.name)"
+              >
                 {{ 'common.delete' | translate }}
               </button>
             } @else if (canRent() && machinery.isAvailable()) {
@@ -126,9 +177,79 @@
                 {{ 'machinery-list.rent' | translate }}
               </a>
             }
+            <button
+              mat-stroked-button
+              type="button"
+              class="history-action"
+              (click)="openHistory(machinery)"
+            >
+              {{ 'machinery-list.view-history' | translate }}
+            </button>
           </div>
         </article>
       }
+    </div>
+  }
+
+  @if (selectedMachineryForHistory(); as selectedMachinery) {
+    <div class="history-backdrop" (click)="closeHistory()" (keydown.escape)="closeHistory()">
+      <section
+        class="history-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-dialog-title"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="history-header">
+          <div>
+            <span class="eyebrow">{{ 'machinery-list.history-eyebrow' | translate }}</span>
+            <h2 id="history-dialog-title">{{ selectedMachinery.name }}</h2>
+          </div>
+          <button mat-stroked-button type="button" class="history-close" (click)="closeHistory()">
+            {{ 'common.close' | translate }}
+          </button>
+        </header>
+
+        @if (maintenanceStore.historyLoading()) {
+          <div class="history-state" role="status" aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <p>{{ 'machinery-list.history-loading' | translate }}</p>
+          </div>
+        } @else if (maintenanceStore.historyError()) {
+          <div class="history-state error-message" role="alert">
+            <p>{{ maintenanceStore.historyError() }}</p>
+            <button mat-flat-button type="button" class="history-retry" (click)="retryHistory()">
+              {{ 'common.retry' | translate }}
+            </button>
+          </div>
+        } @else if (maintenanceStore.history().length === 0) {
+          <div class="history-state">
+            <p>{{ 'machinery-list.history-empty' | translate }}</p>
+          </div>
+        } @else {
+          <ul class="history-list">
+            @for (maintenance of maintenanceStore.history(); track maintenance.id) {
+              <li class="history-item">
+                <div class="history-item-head">
+                  <span class="history-type">
+                    {{ 'enums.maintenance-type.' + maintenance.type | translate }}
+                  </span>
+                  <span class="status" [class]="maintenanceStatusClass(maintenance.status)">
+                    {{ 'enums.maintenance-status.' + maintenance.status | translate }}
+                  </span>
+                </div>
+                <p class="history-description">{{ maintenance.description }}</p>
+                <div class="history-meta">
+                  <span>{{ 'machinery-list.history-date' | translate }}:</span>
+                  <time>
+                    {{ (maintenance.completedAt ?? maintenance.scheduledDate) | date: 'dd/MM/yyyy' }}
+                  </time>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </section>
     </div>
   }
 </section>
